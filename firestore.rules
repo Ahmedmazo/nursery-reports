@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function myRoleDoc() { return get(/databases/$(database)/documents/roles/$(request.auth.token.email)); }
+    function isAdmin() { return signedIn() && myRoleDoc().data.role == 'admin'; }
+
+    match /roles/{email} {
+      allow read: if signedIn();
+      // بوتستراب: أول مرة السجل يتعمل، أي مستخدم مسجل دخول يقدر يضيف نفسه فقط كأدمن
+      allow create: if signedIn() && request.auth.token.email == email;
+      allow update, delete: if isAdmin();
+    }
+
+    match /reports/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.supervisorEmail == request.auth.token.email;
+      allow update: if signedIn(); // للردود من الأدمن أو تعديل السوبر فايزر لتقريرها
+      allow delete: if isAdmin();
+    }
+  }
+}
